@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package gmunch;
+
+message Event {
+	string name = 1;
+	bytes data = 2;
+}
+
+message Response {
+	bool ok = 1;
+}
+
+service Events {
+	rpc Publish(Event) returns (Response) {}
+}
