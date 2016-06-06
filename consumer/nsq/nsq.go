@@ -2,7 +2,7 @@ package nsq
 
 import (
 	"time"
-	
+
 	"github.com/golang/protobuf/proto"
 	"github.com/nsqio/go-nsq"
 	"github.com/opsee/gmunch"
@@ -49,6 +49,11 @@ func (c *nsqConsumer) Start() error {
 	if err != nil {
 		log.WithError(err).Error("couldn't create nsq consumer")
 		return err
+	}
+
+	if c.config.HandlerCount == 0 {
+		c.logger.Info("no nsq handler count config detected, setting to 4")
+		c.config.HandlerCount = 4
 	}
 
 	c.consumer.AddConcurrentHandlers(c, c.config.HandlerCount)
