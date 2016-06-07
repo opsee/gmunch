@@ -4,10 +4,10 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/cenkalti/backoff"
 	"github.com/grepory/scheduler"
 	"github.com/opsee/gmunch"
-	log "github.com/sirupsen/logrus"
 )
 
 type Dispatch map[string]DispatchFunc
