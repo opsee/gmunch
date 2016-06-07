@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kinesis"
@@ -13,7 +14,6 @@ import (
 	etcd "github.com/coreos/etcd/client"
 	"github.com/golang/protobuf/proto"
 	"github.com/opsee/gmunch"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 

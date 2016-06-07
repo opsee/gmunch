@@ -5,11 +5,11 @@ import (
 	"os/signal"
 	"syscall"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/opsee/gmunch"
 	consumer "github.com/opsee/gmunch/consumer/kinesis"
 	"github.com/opsee/gmunch/examples/debug"
 	"github.com/opsee/gmunch/worker"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
 

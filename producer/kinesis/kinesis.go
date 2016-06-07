@@ -5,12 +5,12 @@ import (
 	"math/rand"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kinesis"
 	"github.com/golang/protobuf/proto"
 	"github.com/opsee/gmunch"
-	log "github.com/sirupsen/logrus"
 )
 
 type producer struct {

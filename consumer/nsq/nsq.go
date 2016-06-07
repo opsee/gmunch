@@ -3,10 +3,10 @@ package nsq
 import (
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/golang/protobuf/proto"
 	"github.com/nsqio/go-nsq"
 	"github.com/opsee/gmunch"
-	log "github.com/sirupsen/logrus"
 )
 
 type nsqConsumer struct {

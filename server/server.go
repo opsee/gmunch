@@ -3,10 +3,10 @@ package server
 import (
 	"net"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/opsee/gmunch"
 	"github.com/opsee/gmunch/producer"
 	"github.com/opsee/gmunch/worker"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	grpcauth "google.golang.org/grpc/credentials"

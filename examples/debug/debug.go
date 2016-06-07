@@ -1,8 +1,8 @@
 package debug
 
 import (
+	log "github.com/Sirupsen/logrus"
 	"github.com/opsee/gmunch"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 
