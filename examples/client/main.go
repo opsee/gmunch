@@ -5,16 +5,18 @@ import (
 
 	"github.com/opsee/gmunch/client"
 	"github.com/spf13/viper"
-	"google.golang.org/grpc/credentials"
 )
 
 func main() {
 	viper.SetEnvPrefix("gmunch")
 	viper.AutomaticEnv()
 
-	client, err := client.New(viper.GetString("address"), credentials.NewTLS(&tls.Config{
-		InsecureSkipVerify: true,
-	}))
+	config := client.Config{
+		TLSConfig: tls.Config{
+			InsecureSkipVerify: true,
+		},
+	}
+	client, err := client.New(viper.GetString("address"), config)
 	if err != nil {
 		panic(err)
 	}
