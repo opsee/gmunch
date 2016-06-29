@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/opsee/logrus"
 	"github.com/cenkalti/backoff"
 	"github.com/grepory/scheduler"
 	"github.com/opsee/gmunch"

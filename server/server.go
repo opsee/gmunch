@@ -3,7 +3,7 @@ package server
 import (
 	"net"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/opsee/logrus"
 	"github.com/opsee/gmunch"
 	"github.com/opsee/gmunch/producer"
 	"github.com/opsee/gmunch/worker"

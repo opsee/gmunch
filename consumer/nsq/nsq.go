@@ -3,7 +3,7 @@ package nsq
 import (
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/opsee/logrus"
 	"github.com/golang/protobuf/proto"
 	"github.com/nsqio/go-nsq"
 	"github.com/opsee/gmunch"

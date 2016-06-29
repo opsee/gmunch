@@ -5,7 +5,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/opsee/logrus"
 	"github.com/opsee/gmunch"
 	consumer "github.com/opsee/gmunch/consumer/kinesis"
 	"github.com/opsee/gmunch/examples/debug"
