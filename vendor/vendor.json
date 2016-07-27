@@ -357,10 +357,11 @@
 			"revisionTime": "2016-05-16T08:31:02-04:00"
 		},
 		{
-			"checksumSHA1": "6IoiLJkjSoT5hPNiHM7SVgEpW3c=",
+			"checksumSHA1": "EBrX9rCXJ+y51KeJTM3YJKGesfE=",
+			"origin": "github.com/opsee/gmunch/vendor/google.golang.org/grpc",
 			"path": "google.golang.org/grpc",
-			"revision": "b0b7afa173ab8030774fdf383cac027c3c5077d2",
-			"revisionTime": "2016-05-17T22:15:47Z"
+			"revision": "6732fdf9f82f3f11c1b7326e4a23efbb0738788e",
+			"revisionTime": "2016-07-27T10:59:08-07:00"
 		},
 		{
 			"checksumSHA1": "08icuA15HRkdYCt6H+Cs90RPQsY=",

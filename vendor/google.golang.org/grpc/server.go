@@ -73,6 +73,7 @@ type ServiceDesc struct {
 	HandlerType interface{}
 	Methods     []MethodDesc
 	Streams     []StreamDesc
+	Metadata    interface{}
 }
 
 // service consists of the information of the server serving this service and
@@ -81,21 +82,26 @@ type service struct {
 	server interface{} // the server for service methods
 	md     map[string]*MethodDesc
 	sd     map[string]*StreamDesc
+	mdata  interface{}
 }
 
 // Server is a gRPC server to serve RPC requests.
 type Server struct {
 	opts options
 
-	mu     sync.Mutex // guards following
-	lis    map[net.Listener]bool
-	conns  map[io.Closer]bool
+	mu    sync.Mutex // guards following
+	lis   map[net.Listener]bool
+	conns map[io.Closer]bool
+	drain bool
+	// A CondVar to let GracefulStop() blocks until all the pending RPCs are finished
+	// and all the transport goes away.
+	cv     *sync.Cond
 	m      map[string]*service // service name -> service info
 	events trace.EventLog
 }
 
 type options struct {
-	creds                credentials.Credentials
+	creds                credentials.TransportCredentials
 	codec                Codec
 	cp                   Compressor
 	dc                   Decompressor
@@ -115,12 +121,14 @@ func CustomCodec(codec Codec) ServerOption {
 	}
 }
 
+// RPCCompressor returns a ServerOption that sets a compressor for outbound message.
 func RPCCompressor(cp Compressor) ServerOption {
 	return func(o *options) {
 		o.cp = cp
 	}
 }
 
+// RPCDecompressor returns a ServerOption that sets a decompressor for inbound message.
 func RPCDecompressor(dc Decompressor) ServerOption {
 	return func(o *options) {
 		o.dc = dc
@@ -136,7 +144,7 @@ func MaxConcurrentStreams(n uint32) ServerOption {
 }
 
 // Creds returns a ServerOption that sets credentials for server connections.
-func Creds(c credentials.Credentials) ServerOption {
+func Creds(c credentials.TransportCredentials) ServerOption {
 	return func(o *options) {
 		o.creds = c
 	}
@@ -182,6 +190,7 @@ func NewServer(opt ...ServerOption) *Server {
 		conns: make(map[io.Closer]bool),
 		m:     make(map[string]*service),
 	}
+	s.cv = sync.NewCond(&s.mu)
 	if EnableTracing {
 		_, file, line, _ := runtime.Caller(1)
 		s.events = trace.NewEventLog("grpc.Server", fmt.Sprintf("%s:%d", file, line))
@@ -228,6 +237,7 @@ func (s *Server) register(sd *ServiceDesc, ss interface{}) {
 		server: ss,
 		md:     make(map[string]*MethodDesc),
 		sd:     make(map[string]*StreamDesc),
+		mdata:  sd.Metadata,
 	}
 	for i := range sd.Methods {
 		d := &sd.Methods[i]
@@ -240,6 +250,52 @@ func (s *Server) register(sd *ServiceDesc, ss interface{}) {
 	s.m[sd.ServiceName] = srv
 }
 
+// MethodInfo contains the information of an RPC including its method name and type.
+type MethodInfo struct {
+	// Name is the method name only, without the service name or package name.
+	Name string
+	// IsClientStream indicates whether the RPC is a client streaming RPC.
+	IsClientStream bool
+	// IsServerStream indicates whether the RPC is a server streaming RPC.
+	IsServerStream bool
+}
+
+// ServiceInfo contains unary RPC method info, streaming RPC methid info and metadata for a service.
+type ServiceInfo struct {
+	Methods []MethodInfo
+	// Metadata is the metadata specified in ServiceDesc when registering service.
+	Metadata interface{}
+}
+
+// GetServiceInfo returns a map from service names to ServiceInfo.
+// Service names include the package names, in the form of <package>.<service>.
+func (s *Server) GetServiceInfo() map[string]*ServiceInfo {
+	ret := make(map[string]*ServiceInfo)
+	for n, srv := range s.m {
+		methods := make([]MethodInfo, 0, len(srv.md)+len(srv.sd))
+		for m := range srv.md {
+			methods = append(methods, MethodInfo{
+				Name:           m,
+				IsClientStream: false,
+				IsServerStream: false,
+			})
+		}
+		for m, d := range srv.sd {
+			methods = append(methods, MethodInfo{
+				Name:           m,
+				IsClientStream: d.ClientStreams,
+				IsServerStream: d.ServerStreams,
+			})
+		}
+
+		ret[n] = &ServiceInfo{
+			Methods:  methods,
+			Metadata: srv.mdata,
+		}
+	}
+	return ret
+}
+
 var (
 	// ErrServerStopped indicates that the operation is now illegal because of
 	// the server being stopped.
@@ -247,30 +303,33 @@ var (
 )
 
 func (s *Server) useTransportAuthenticator(rawConn net.Conn) (net.Conn, credentials.AuthInfo, error) {
-	creds, ok := s.opts.creds.(credentials.TransportAuthenticator)
-	if !ok {
+	if s.opts.creds == nil {
 		return rawConn, nil, nil
 	}
-	return creds.ServerHandshake(rawConn)
+	return s.opts.creds.ServerHandshake(rawConn)
 }
 
 // Serve accepts incoming connections on the listener lis, creating a new
 // ServerTransport and service goroutine for each. The service goroutines
 // read gRPC requests and then call the registered handlers to reply to them.
-// Service returns when lis.Accept fails.
+// Service returns when lis.Accept fails. lis will be closed when
+// this method returns.
 func (s *Server) Serve(lis net.Listener) error {
 	s.mu.Lock()
 	s.printf("serving")
 	if s.lis == nil {
 		s.mu.Unlock()
+		lis.Close()
 		return ErrServerStopped
 	}
 	s.lis[lis] = true
 	s.mu.Unlock()
 	defer func() {
-		lis.Close()
 		s.mu.Lock()
-		delete(s.lis, lis)
+		if s.lis != nil && s.lis[lis] {
+			lis.Close()
+			delete(s.lis, lis)
+		}
 		s.mu.Unlock()
 	}()
 	for {
@@ -414,7 +473,7 @@ func (s *Server) traceInfo(st transport.ServerTransport, stream *transport.Strea
 func (s *Server) addConn(c io.Closer) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.conns == nil {
+	if s.conns == nil || s.drain {
 		return false
 	}
 	s.conns[c] = true
@@ -426,6 +485,7 @@ func (s *Server) removeConn(c io.Closer) {
 	defer s.mu.Unlock()
 	if s.conns != nil {
 		delete(s.conns, c)
+		s.cv.Signal()
 	}
 }
 
@@ -459,6 +519,10 @@ func (s *Server) processUnaryRPC(t transport.ServerTransport, stream *transport.
 				trInfo.tr.SetError()
 			}
 		}()
+	}
+	if s.opts.cp != nil {
+		// NOTE: this needs to be ahead of all handling, https://github.com/grpc/grpc-go/issues/686.
+		stream.SetSendCompress(s.opts.cp.Type())
 	}
 	p := &parser{r: stream}
 	for {
@@ -521,7 +585,7 @@ func (s *Server) processUnaryRPC(t transport.ServerTransport, stream *transport.
 		}
 		reply, appErr := md.Handler(srv.server, stream.Context(), df, s.opts.unaryInt)
 		if appErr != nil {
-			if err, ok := appErr.(rpcError); ok {
+			if err, ok := appErr.(*rpcError); ok {
 				statusCode = err.code
 				statusDesc = err.desc
 			} else {
@@ -544,9 +608,6 @@ func (s *Server) processUnaryRPC(t transport.ServerTransport, stream *transport.
 		opts := &transport.Options{
 			Last:  true,
 			Delay: false,
-		}
-		if s.opts.cp != nil {
-			stream.SetSendCompress(s.opts.cp.Type())
 		}
 		if err := s.sendResponse(t, stream, reply, s.opts.cp, opts); err != nil {
 			switch err := err.(type) {
@@ -609,7 +670,7 @@ func (s *Server) processStreamingRPC(t transport.ServerTransport, stream *transp
 		appErr = s.opts.streamInt(srv.server, ss, info, sd.Handler)
 	}
 	if appErr != nil {
-		if err, ok := appErr.(rpcError); ok {
+		if err, ok := appErr.(*rpcError); ok {
 			ss.statusCode = err.code
 			ss.statusDesc = err.desc
 		} else if err, ok := appErr.(transport.StreamError); ok {
@@ -711,18 +772,45 @@ func (s *Server) Stop() {
 	s.mu.Lock()
 	listeners := s.lis
 	s.lis = nil
-	cs := s.conns
+	st := s.conns
 	s.conns = nil
 	s.mu.Unlock()
 
 	for lis := range listeners {
 		lis.Close()
 	}
-	for c := range cs {
+	for c := range st {
 		c.Close()
 	}
 
 	s.mu.Lock()
+	if s.events != nil {
+		s.events.Finish()
+		s.events = nil
+	}
+	s.mu.Unlock()
+}
+
+// GracefulStop stops the gRPC server gracefully. It stops the server to accept new
+// connections and RPCs and blocks until all the pending RPCs are finished.
+func (s *Server) GracefulStop() {
+	s.mu.Lock()
+	if s.drain == true || s.conns == nil {
+		s.mu.Lock()
+		return
+	}
+	s.drain = true
+	for lis := range s.lis {
+		lis.Close()
+	}
+	for c := range s.conns {
+		c.(transport.ServerTransport).Drain()
+	}
+	for len(s.conns) != 0 {
+		s.cv.Wait()
+	}
+	s.lis = nil
+	s.conns = nil
 	if s.events != nil {
 		s.events.Finish()
 		s.events = nil
