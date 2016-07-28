@@ -9,6 +9,10 @@ type Decoder interface {
 	Decode(interface{}) error
 }
 
+func init() {
+	gob.Register(map[string]interface{}{})
+}
+
 func (event *Event) EncodeData(data interface{}) error {
 	var b bytes.Buffer
 	err := gob.NewEncoder(&b).Encode(data)
