@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/opsee/logrus"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kinesis"
@@ -14,6 +13,7 @@ import (
 	etcd "github.com/coreos/etcd/client"
 	"github.com/golang/protobuf/proto"
 	"github.com/opsee/gmunch"
+	log "github.com/opsee/logrus"
 	"golang.org/x/net/context"
 )
 
@@ -43,13 +43,14 @@ type Config struct {
 	Stream        string
 	EtcdEndpoints []string
 	ShardPath     string
+	Region        string
 }
 
 func New(config Config) *kinesisConsumer {
 	return &kinesisConsumer{
 		stream:        config.Stream,
 		etcdEndpoints: config.EtcdEndpoints,
-		client:        kinesis.New(session.New()),
+		client:        kinesis.New(session.New(aws.NewConfig().WithRegion(config.Region))),
 		stopChan:      make(chan struct{}, 1),
 		stoppedChan:   make(chan struct{}, 1),
 		eventChan:     make(chan *gmunch.Event),

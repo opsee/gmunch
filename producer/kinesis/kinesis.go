@@ -5,12 +5,12 @@ import (
 	"math/rand"
 	"time"
 
-	log "github.com/opsee/logrus"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kinesis"
 	"github.com/golang/protobuf/proto"
 	"github.com/opsee/gmunch"
+	log "github.com/opsee/logrus"
 )
 
 type producer struct {
@@ -21,13 +21,14 @@ type producer struct {
 
 type Config struct {
 	Stream string
+	Region string
 }
 
 func New(config Config) *producer {
 	return &producer{
 		stream: config.Stream,
 		rand:   rand.New(rand.NewSource(time.Now().UnixNano())),
-		client: kinesis.New(session.New()),
+		client: kinesis.New(session.New(aws.NewConfig().WithRegion(config.Region))),
 	}
 }
 
