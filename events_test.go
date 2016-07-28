@@ -23,6 +23,9 @@ func TestFieldsMap(t *testing.T) {
 		Permissions: []string{"read", "write", "admin"},
 		Attributes: map[string]interface{}{
 			"cool": true,
+			"worms": []interface{}{
+				"nightcrawlers",
+			},
 		},
 	})
 

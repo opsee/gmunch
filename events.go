@@ -11,6 +11,7 @@ type Decoder interface {
 
 func init() {
 	gob.Register(map[string]interface{}{})
+	gob.Register([]interface{}{})
 }
 
 func (event *Event) EncodeData(data interface{}) error {
